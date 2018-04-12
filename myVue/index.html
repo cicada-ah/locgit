@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Document</title>
+    <style>
+
+    </style>
+
+    <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+</head>
+<body id='body'>
+<div id="app">
+	<form action="">
+		<input type="text" v-model="number">
+		<input type="text" v-model="bar">
+		<button type="button" v-on:click="increment">增加</button>
+	</form>
+	<h1 v-bind="number"></h1>
+	<h1 v-bind="bar"></h1>
+</div>
+</body>
+<script>
+function MyVue(obj) {
+	this._init(obj)
+	this._obverse(this.$data)
+	this._complice(this.$el)
+
+}
+// 封装初始化数据
+MyVue.prototype._init = function (obj) {
+	this.$obj = obj
+	this.$el = document.querySelector(obj.el)
+	this.$data = obj.data
+	this.$methods = obj.methods 
+	this._binding = {}	
+	this.value = []
+	this.i = 0
+}
+
+// 拦截属性修改
+MyVue.prototype._obverse = function (objData) {
+	let value;
+	let _this = this;
+	let _binding = this._binding;
+	for (key in objData) {
+		if (objData.hasOwnProperty(key)) {
+			value = objData[key]
+			_binding[key] = {
+				_dep:[]
+			}
+			if (typeof value === 'object') {
+				this._obverse(value)
+			}
+		}
+		this.value[this.i] = this.$data[key];
+		(function (i,_this) {
+	    Object.defineProperty(_this.$data, key, {
+		enumerable: true,
+		configurable: false,
+		get: function () {
+			console.log(`获取${_this.value[i]}`)
+			return _this.value[i]
+		},
+		set: function (newVal) {
+			console.log(`更新${newVal}`)
+			_this.value[i] = newVal
+			_binding[key]._dep.forEach(function (item) {
+				item.update()
+			})
+		}
+	})
+		})(this.i,_this)
+
+	this.i++
+	}
+
+}
+// 监听data，并及时更新DOM
+function Watcher(name, el, vm, exp, attr) {
+	this.name = name
+	this.el = el
+	this.vm = vm
+	this.exp = exp
+	this.attr = attr
+	this.update()
+}
+
+Watcher.prototype.update = function () {
+	this.el[this.attr] = this.vm.$data[this.exp]
+}
+
+// 遍历el,VM
+MyVue.prototype._complice = function (root) {
+	let _this = this //保存this指向
+	let nodes = root.children
+	for (let i = 0; i < nodes.length; i++) {
+		let node = nodes[i]
+		if (node.children.length) {
+			_this._complice(node)
+		}
+		if (node.hasAttribute('v-model')) {
+			let attr = nodes[i].getAttribute('v-model')
+			console.log(this.$data[attr] + 'b')
+			_this._binding[attr]._dep.push(new Watcher('input', node, _this, attr, 'value'))
+			node.addEventListener('input',(function (val) {
+							return function () {_this.$data[attr] = nodes[i].value}
+						})(i))
+		}
+
+
+		if (node.hasAttribute('v-on:click')) {
+			node.onclick = (function (index) {
+				let attr = nodes[i].getAttribute('v-on:click')
+				return _this.$methods[attr].bind(_this.$data)
+						})(i)
+		}
+
+		if (node.hasAttribute('v-bind')) {
+			let attr = nodes[i].getAttribute('v-bind')
+			_this._binding[attr]._dep.push(new Watcher('text', node, _this, attr, 'innerHTML'))
+		}
+	}
+}
+
+
+
+let app = new MyVue({
+	el:'#app',
+	data:{
+		number:0,
+		bar:'a'
+	},
+	methods:{
+		increment(){
+			this.number++
+		}
+	}
+})
+
+
+</script>
+</html>
